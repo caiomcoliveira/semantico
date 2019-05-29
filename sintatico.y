@@ -1,6 +1,7 @@
 %{
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #define YYDEBUG 1
 extern int yydebug;
 extern FILE *yyin;
@@ -9,8 +10,8 @@ int yylex ();
 
 
 typedef struct simbolo {
-	char *name;
-	char *tipo;
+	char name[200];
+	char tipo[30];
 	int usado;
 	int linha;
 	struct simbolo *next;
@@ -18,7 +19,7 @@ typedef struct simbolo {
 
 int linha = 0;
 
-simbolo *tabela_simbolos = (simbolo *)0;
+simbolo *tabela_simbolos = NULL;
 void putsym(char* sym_name);
 simbolo* getsym(char *sym_name);
 
@@ -27,8 +28,8 @@ typedef struct error {
 	struct error* next;
 } error;
 
-error *errors= (error *)0;
-error *warnings= (error *)0;
+error *errors= NULL;
+error *warnings= NULL;
 
 void puterror(char* error_name, error **lista);
 void imprimeErros(error **lista);
@@ -42,14 +43,18 @@ void verificaTabelaSimbolos (char * sym_name);
 
 
 %}
+%union {
+	char *id;
+}
+
 %token NUM
-%token ID
+%token <id> ID
 %token LEIA
 %token ESCREVA
 %token OPA
 %token OPM
 %token STRING
-%token TIPO
+%token <id> TIPO
 %token VAR
 
 %%
@@ -72,9 +77,9 @@ cmd:		ID '=' exp		{verificaTabelaSimbolos($1);}
         |   leia          {;}
         |   escreva       {;}
 ;
-leia:   LEIA '(' lista_var ')' {verificaTabelaSimbolos($1);} /*Perguntar se "leia" é um token ou se eh definido na gramatica */
+leia:   LEIA '(' lista_var ')' { /*verificaTabelaSimbolos($1);*/ } /*Perguntar se "leia" é um token ou se eh definido na gramatica */
 ;
-escreva: ESCREVA '(' lista_output ')' {verificaTabelaSimbolos($1);}
+escreva: ESCREVA '(' lista_output ')' { /*verificaTabelaSimbolos($1);*/}
 ;
 lista_var: 	ID 										{linha++;insereTabelaSimbolos($1);}
                 | ID ',' lista_var { insereTabelaSimbolos($1);}
@@ -139,8 +144,8 @@ int yyerror (char *s) /* Called by yyparse on error */
 
 void putsym(char *sym_name){
 	simbolo *aux = (simbolo*) malloc(sizeof(simbolo));
-	aux->name = strdup( sym_name);
-	aux->usado = 0;
+    strcpy(aux->name, sym_name);
+    aux->usado = 0;
 	aux->next = tabela_simbolos;
 	aux->linha = linha;
 	tabela_simbolos = aux;
@@ -148,19 +153,18 @@ void putsym(char *sym_name){
 
 simbolo*  getsym( char * sym_name){
 	simbolo *aux = tabela_simbolos;
-	while(aux!= NULL){		
+    while(aux!= NULL){		
 		if(strcmp(aux->name, sym_name) == 0)
 			return aux;	
 		aux = aux->next;
 	}
-
 	return 0;
 }
 
 
 void puterror(char *error_name, error **lista){
 	error *aux = (error*) malloc(sizeof(error));
-	aux->name = strdup(error_name);
+	strcpy(aux->name,error_name);
 	aux->next = (*lista);
 	(*lista) = aux;
 }
@@ -189,9 +193,10 @@ int tamanhoListaErros(error **lista){
 void insereTabelaSimbolos (char * sym_name){
 
 	simbolo* s = getsym(sym_name);
-
+    printf("Inserindo nome %s\n", sym_name);
 	if(!s){
-		putsym (sym_name);
+        putsym (sym_name);
+        
 	}else{
 		char message[1024];
 		snprintf(message, 1024, "ERRO: A variavel %s ja foi definida!",sym_name);
@@ -231,7 +236,7 @@ void imprimeTabelaSimbolos(){
 	printf("NOME\t TIPO\t\t\tUSADA\n");
 
 	while(aux!= NULL){		
-		printf("%s\t %s \t\t%s\n", aux->name, aux->tipo, (aux->usado == 0) ? "nao" : "sim");
+		printf("%s\t %s \t\t\t%s\n", aux->name, aux->tipo, (aux->usado == 0) ? "nao" : "sim");
 		aux = aux->next;
 	}
 }
@@ -241,7 +246,7 @@ void insereTiposSimbolos(char* tipo, int n){
 		simbolo * aux = tabela_simbolos;
 		while(aux!= NULL){		
             if(aux->linha == n){
-				aux->tipo = strdup(tipo);
+				strcpy(aux->tipo,tipo);
 			}
 			aux = aux->next;
 		}
