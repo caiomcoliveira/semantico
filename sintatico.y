@@ -78,21 +78,21 @@ void verifySymTable (char * sym_name);
 
 %%
 
-programa:	bloco_var
-					'{' lista_cmds '}'	{;}
+programa:	    bloco_var
+            '{' lista_cmds '}'	{;}
 ;
-bloco_var: /*empty*/
-					| VAR '{' lista_decl_var '}' {;}
+bloco_var:      /*empty*/
+                | VAR '{' lista_decl_var '}' {;}
 ;
-lista_decl_var: decl_var {;}
+lista_decl_var:           decl_var                    {;}
 						| decl_var ';' lista_decl_var {;}
 ;
-decl_var: TIPO {currentType = $1;} lista_var {;}
+decl_var:  TIPO {currentType = $1;} lista_var {;}
 ;
-lista_cmds:	cmd			{;}
-		| cmd ';' lista_cmds	{;}
+lista_cmds:	    cmd			        {;}
+            |   cmd ';' lista_cmds	{;}
 ;
-cmd:		ID '=' exp		{verifySymTable($1);}
+cmd:		ID '=' exp	  { verifySymTable($1); }
         |   leia          {;}
         |   escreva       {;}
 ;
@@ -100,40 +100,40 @@ leia:   LEIA '(' lista_args ')' {;} /*Perguntar se "leia" é um token ou se eh d
 ;
 escreva: ESCREVA '(' lista_output ')' {;}
 ;
-lista_args: 	ID 										{ verifySymTable($1);}
-                | ID ',' lista_args                      { verifySymTable($1);}
+lista_args: 	  ID   									 { verifySymTable($1); }
+                | ID ',' lista_args                      { verifySymTable($1); }
 ;
 
-lista_var: 	  ID 								 {pushSymTable($1);}
-            | ID ',' lista_var                   { pushSymTable($1);}
+lista_var: 	  ID 								 { pushSymTable($1); }
+            | ID ',' lista_var                   { pushSymTable($1); }
 ;
 lista_output: 	output    							{;}
-              | output ',' lista_output {;}
+              | output ',' lista_output             {;}
 ;
-output: exp {;}
+output:         exp        {;}
         /*| '"' STRING '"' {;} */
 ;
 exp:
-			termo 				{;}
-    | exp opa termo {;}
-		// | exp '-' termo {;}
+		termo 				{;}
+    |   exp opa termo       {;}
+		// | exp '-' termo  {;}
 ;
 
 termo:
-			fator           	{;}
-    | termo '*' fator 	{;}
-		| termo '/' fator 	{;}
+          fator           	{;}
+        | termo '*' fator 	{;}
+        | termo '/' fator 	{;}
 ;
 
 opa:
       '+' {;}
     | '-' {;}
-
+;
 fator:
-    NUM           {;}
+      NUM           {;}
 	| opa NUM       {;}
-	| ID 						{verifySymTable($1);}
-  | '(' exp ')'   {;}
+	| ID 			{ verifySymTable($1); }
+    | '(' exp ')'   {;}
 ;
 %%
 int main (int argc, char *argv[])
@@ -168,14 +168,15 @@ int yyerror (char *s) /* Called by yyparse on error */
     print_color_red();
 	printf ("Problema com a analise sintatica!\n");
     print_color_end();
+    return 0;
 }
 
 
 void putsym(char *sym_name){
 	symbol *aux = (symbol*) malloc(sizeof(symbol));
     strcpy(aux->name, sym_name);
-    aux->used = 0;
     strcpy(aux->type,currentType);
+    aux->used = 0;
 	aux->next = symbol_table;
 	symbol_table = aux;
 }
