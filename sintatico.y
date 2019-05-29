@@ -36,8 +36,8 @@ symbol *symbol_table = (symbol*)0;
 error *errors= (error*)0;
 error *warnings= (error*)0;
 
-void putsym(char* sym_name);
-symbol* getsym(char *sym_name);
+void push_symbol(char* sym_name);
+symbol* find_symbol(char *sym_name);
 
 
 
@@ -51,14 +51,14 @@ void print_color_end(){
     printf("%s", KNRM);
 };
 
-void puterror(error **list, char* error_name);
-void printErrors(error **list);
-int errorListSize(error **list);
+void push_error(error **list, char* error_name);
+void print_errors(error **list);
+int list_length(error **list);
 
-void variablesNotUsed();
-void printSymTable();
-void pushSymTable (char * sym_name);
-void verifySymTable (char * sym_name);
+void print_symbol_table();
+void push_symbol_table (char * sym_name);
+void verify_variables_not_used();
+void verify_symbol_table (char * sym_name);
 
 
 %}
@@ -92,7 +92,7 @@ decl_var:  TIPO {currentType = $1;} lista_var {;}
 lista_cmds:	    cmd			        {;}
             |   cmd ';' lista_cmds	{;}
 ;
-cmd:		ID '=' exp	  { verifySymTable($1); }
+cmd:		ID '=' exp	  { verify_symbol_table($1); }
         |   leia          {;}
         |   escreva       {;}
 ;
@@ -100,12 +100,12 @@ leia:   LEIA '(' lista_args ')' {;} /*Perguntar se "leia" é um token ou se eh d
 ;
 escreva: ESCREVA '(' lista_output ')' {;}
 ;
-lista_args: 	  ID   									 { verifySymTable($1); }
-                | ID ',' lista_args                      { verifySymTable($1); }
+lista_args: 	  ID   									 { verify_symbol_table($1); }
+                | ID ',' lista_args                      { verify_symbol_table($1); }
 ;
 
-lista_var: 	  ID 								 { pushSymTable($1); }
-            | ID ',' lista_var                   { pushSymTable($1); }
+lista_var: 	  ID 								 { push_symbol_table($1); }
+            | ID ',' lista_var                   { push_symbol_table($1); }
 ;
 lista_output: 	output    							{;}
               | output ',' lista_output             {;}
@@ -132,7 +132,7 @@ opa:
 fator:
       NUM           {;}
 	| opa NUM       {;}
-	| ID 			{ verifySymTable($1); }
+	| ID 			{ verify_symbol_table($1); }
     | '(' exp ')'   {;}
 ;
 %%
@@ -150,16 +150,16 @@ int main (int argc, char *argv[])
         return 0;
     }
     if(!(yyparse ())) {
-        if(errorListSize(&errors) > 0){
+        if(list_length(&errors) > 0){
             print_color_red();
-            printErrors(&errors);
+            print_errors(&errors);
             print_color_end();
         }else{
-            variablesNotUsed();
+            verify_variables_not_used();
             print_color_yellow();
-            printErrors(&warnings);
+            print_errors(&warnings);
             print_color_end();
-            // printSymTable();
+            // print_symbol_table();
         }						
     }
 }
@@ -172,7 +172,7 @@ int yyerror (char *s) /* Called by yyparse on error */
 }
 
 
-void putsym(char *sym_name){
+void push_symbol(char *sym_name){
 	symbol *aux = (symbol*) malloc(sizeof(symbol));
     strcpy(aux->name, sym_name);
     strcpy(aux->type,currentType);
@@ -181,7 +181,7 @@ void putsym(char *sym_name){
 	symbol_table = aux;
 }
 
-symbol*  getsym( char * sym_name){
+symbol*  find_symbol( char * sym_name){
 	symbol *aux = symbol_table;
     while(aux!= NULL){		
 		if(strcmp(aux->name, sym_name) == 0)
@@ -192,16 +192,15 @@ symbol*  getsym( char * sym_name){
 }
 
 
-void puterror(error **list, char *error_name){
+void push_error(error **list, char *error_name){
 	error *aux = (error*) malloc(sizeof(error));
 	strcpy(aux->name,error_name);
 	aux->next = (*list);
 	(*list) = aux;
 }
 
-void printErrors(error **list){
+void print_errors(error **list){
 	error *aux = *list;
-
 	while(aux!= NULL){		
 		printf("%s\n", aux->name);
 		aux = aux->next;
@@ -209,7 +208,7 @@ void printErrors(error **list){
 	printf("\n");
 }
 
-int errorListSize(error **list){
+int list_length(error **list){
 	int length = 0;
 	error *aux = *list;
 
@@ -220,46 +219,44 @@ int errorListSize(error **list){
 	return length;
 }
 
-void pushSymTable (char * sym_name){
-	symbol* s = getsym(sym_name);
+void push_symbol_table (char * sym_name){
+	symbol* s = find_symbol(sym_name);
     if(!s){
-        putsym (sym_name);
+        push_symbol (sym_name);
     }else{
 		char message[1024];
         snprintf(message, 1024, "ERROR: Variable `%s` has already been defined!", sym_name);
-        puterror(&errors, message);
+        push_error(&errors, message);
 	}
 }
 
-void verifySymTable(char * sym_name){
-	symbol* aux = getsym(sym_name);
+void verify_symbol_table(char * sym_name){
+	symbol* aux = find_symbol(sym_name);
 	if(aux == 0){		
 		char message[1024];
 		snprintf(message, 1024, "ERROR: Variable  `%s` has not been declared.", sym_name);
-		puterror(&errors, message);
+		push_error(&errors, message);
 	}else{
 		aux->used = 1;
 	}
 }
 
-void variablesNotUsed(){
+void verify_variables_not_used(){
 	symbol *table = symbol_table;
 	while(table!= NULL){	
         if(table->used == 0){
 			char message[1024];
 			snprintf(message, 1024, "WARNING: Variable `%s` declared, but not used.", table->name);
-            puterror(&warnings, message);
+            push_error(&warnings, message);
 		}
 		table = table->next;
 	}
 }
 
 
-void printSymTable(){
+void print_symbol_table(){
 	symbol *aux = symbol_table;
-
-	printf("Type\t Name\t\t\tUSADA\n");
-
+	printf("Type\t Name\t\t\tUSED\n");
 	while(aux!= NULL){		
 		printf("%s\t %s \t\t\t%s\n", aux->type, aux->name, (aux->used == 0) ? "NO" : "YES");
 		aux = aux->next;
