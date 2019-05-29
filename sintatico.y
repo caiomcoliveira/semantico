@@ -19,10 +19,9 @@ int yylex ();
 
 
 typedef struct symbol {
-	char name[200];
 	char type[30];
+	char name[200];
 	int used;
-	int line;
 	struct symbol *next;
 } symbol;
 
@@ -31,8 +30,6 @@ typedef struct error {
 	struct error* next;
 } error;
 
-
-int line = 0;
 char* currentType;
 
 symbol *symbol_table = (symbol*)0;
@@ -60,8 +57,7 @@ int errorListSize(error **list);
 
 void variablesNotUsed();
 void printSymTable();
-void insertSymTypes(char* type, int n);
-void insertSymTable (char * sym_name);
+void pushSymTable (char * sym_name);
 void verifySymTable (char * sym_name);
 
 
@@ -83,7 +79,7 @@ void verifySymTable (char * sym_name);
 %%
 
 programa:	bloco_var
-					'{' lista_cmds '}'	{printf ("Programa sintaticamente correto!\n");}
+					'{' lista_cmds '}'	{;}
 ;
 bloco_var: /*empty*/
 					| VAR '{' lista_decl_var '}' {;}
@@ -91,7 +87,7 @@ bloco_var: /*empty*/
 lista_decl_var: decl_var {;}
 						| decl_var ';' lista_decl_var {;}
 ;
-decl_var: TIPO {/*insertSymTypes($1, line--);*/ currentType = $1;} lista_var {;}
+decl_var: TIPO {currentType = $1;} lista_var {;}
 ;
 lista_cmds:	cmd			{;}
 		| cmd ';' lista_cmds	{;}
@@ -100,12 +96,16 @@ cmd:		ID '=' exp		{verifySymTable($1);}
         |   leia          {;}
         |   escreva       {;}
 ;
-leia:   LEIA '(' lista_var ')' { /*verifySymTable($1);*/ } /*Perguntar se "leia" é um token ou se eh definido na gramatica */
+leia:   LEIA '(' lista_args ')' {;} /*Perguntar se "leia" é um token ou se eh definido na gramatica */
 ;
-escreva: ESCREVA '(' lista_output ')' { /*verifySymTable($1);*/}
+escreva: ESCREVA '(' lista_output ')' {;}
 ;
-lista_var: 	ID 										{line++;insertSymTable($1);}
-                | ID ',' lista_var { insertSymTable($1);}
+lista_args: 	ID 										{ verifySymTable($1);}
+                | ID ',' lista_args                      { verifySymTable($1);}
+;
+
+lista_var: 	  ID 								 {pushSymTable($1);}
+            | ID ',' lista_var                   { pushSymTable($1);}
 ;
 lista_output: 	output    							{;}
               | output ',' lista_output {;}
@@ -159,13 +159,15 @@ int main (int argc, char *argv[])
             print_color_yellow();
             printErrors(&warnings);
             print_color_end();
-            printSymTable();
+            // printSymTable();
         }						
     }
 }
 int yyerror (char *s) /* Called by yyparse on error */
 {
+    print_color_red();
 	printf ("Problema com a analise sintatica!\n");
+    print_color_end();
 }
 
 
@@ -175,7 +177,6 @@ void putsym(char *sym_name){
     aux->used = 0;
     strcpy(aux->type,currentType);
 	aux->next = symbol_table;
-	aux->line = line;
 	symbol_table = aux;
 }
 
@@ -218,13 +219,13 @@ int errorListSize(error **list){
 	return length;
 }
 
-void insertSymTable (char * sym_name){
+void pushSymTable (char * sym_name){
 	symbol* s = getsym(sym_name);
     if(!s){
         putsym (sym_name);
     }else{
 		char message[1024];
-        snprintf(message, 1024, "ERRO: A variavel %s ja foi definida!",sym_name);
+        snprintf(message, 1024, "ERROR: Variable `%s` has already been defined!", sym_name);
         puterror(&errors, message);
 	}
 }
@@ -233,7 +234,7 @@ void verifySymTable(char * sym_name){
 	symbol* aux = getsym(sym_name);
 	if(aux == 0){		
 		char message[1024];
-		snprintf(message, 1024, "ERRO: Uso da variavel %s sem ter sido definida.", sym_name);
+		snprintf(message, 1024, "ERROR: Variable  `%s` has not been declared.", sym_name);
 		puterror(&errors, message);
 	}else{
 		aux->used = 1;
@@ -241,16 +242,14 @@ void verifySymTable(char * sym_name){
 }
 
 void variablesNotUsed(){
-	symbol *aux = symbol_table;
-	while(aux!= NULL){	
-        if(aux->used == 0){
-            
+	symbol *table = symbol_table;
+	while(table!= NULL){	
+        if(table->used == 0){
 			char message[1024];
-			snprintf(message, 1024, "WARNING: Variavel %s nao foi utilizada.", aux->name);
+			snprintf(message, 1024, "WARNING: Variable `%s` declared, but not used.", table->name);
             puterror(&warnings, message);
 		}
-        
-		aux = aux->next;
+		table = table->next;
 	}
 }
 
@@ -258,21 +257,11 @@ void variablesNotUsed(){
 void printSymTable(){
 	symbol *aux = symbol_table;
 
-	printf("NOME\t type\t\t\tUSADA\n");
+	printf("Type\t Name\t\t\tUSADA\n");
 
 	while(aux!= NULL){		
-		printf("%s\t %s \t\t\t%s\n", aux->name, aux->type, (aux->used == 0) ? "nao" : "sim");
+		printf("%s\t %s \t\t\t%s\n", aux->type, aux->name, (aux->used == 0) ? "NO" : "YES");
 		aux = aux->next;
 	}
 }
 
-
-void insertSymTypes(char* type, int n){
-	symbol * aux = symbol_table;
-	while(aux!= NULL){		
-		if(aux->line == n){
-			strcpy(aux->type,type);
-		}
-		aux = aux->next;
-	}
-}
