@@ -3,6 +3,15 @@
 #include <string.h>
 #include <stdlib.h>
 #define YYDEBUG 1
+#define KNRM  "\x1B[0m"
+#define KRED  "\x1B[31m"
+#define KGRN  "\x1B[32m"
+#define KYEL  "\x1B[33m"
+#define KBLU  "\x1B[34m"
+#define KMAG  "\x1B[35m"
+#define KCYN  "\x1B[36m"
+#define KWHT  "\x1B[37m"
+
 extern int yydebug;
 extern FILE *yyin;
 int yyerror (char *s);
@@ -17,19 +26,33 @@ typedef struct simbolo {
 	struct simbolo *next;
 } simbolo;
 
-int linha = 0;
-
-simbolo *tabela_simbolos = NULL;
-void putsym(char* sym_name);
-simbolo* getsym(char *sym_name);
-
 typedef struct error {
-	char* name;
+	char name[400];
 	struct error* next;
 } error;
 
-error *errors= NULL;
-error *warnings= NULL;
+
+int linha = 0;
+char* tipoAtual;
+
+simbolo *tabela_simbolos = (simbolo*)0;
+error *errors= (error*)0;
+error *warnings= (error*)0;
+
+void putsym(char* sym_name);
+simbolo* getsym(char *sym_name);
+
+
+
+void print_color_red(){
+    printf("%s", KRED);
+};
+void print_color_yellow(){
+    printf("%s", KYEL);
+};
+void print_color_end(){
+    printf("%s", KNRM);
+};
 
 void puterror(char* error_name, error **lista);
 void imprimeErros(error **lista);
@@ -68,7 +91,7 @@ bloco_var: /*empty*/
 lista_decl_var: decl_var {;}
 						| decl_var ';' lista_decl_var {;}
 ;
-decl_var: TIPO {insereTiposSimbolos($1, linha--);} lista_var {;}
+decl_var: TIPO {/*insereTiposSimbolos($1, linha--);*/ tipoAtual = $1} lista_var {;}
 ;
 lista_cmds:	cmd			{;}
 		| cmd ';' lista_cmds	{;}
@@ -128,10 +151,14 @@ int main (int argc, char *argv[])
     }
     if(!(yyparse ())) {
         if(tamanhoListaErros(&errors) > 0){
+            print_color_red();
             imprimeErros(&errors);
+            print_color_end();
         }else{
             verificaVariaveisNaoUtilizadas();
+            print_color_yellow();
             imprimeErros(&warnings);
+            print_color_end();
             imprimeTabelaSimbolos();
         }						
     }
@@ -146,6 +173,7 @@ void putsym(char *sym_name){
 	simbolo *aux = (simbolo*) malloc(sizeof(simbolo));
     strcpy(aux->name, sym_name);
     aux->usado = 0;
+    strcpy(aux->tipo,tipoAtual);
 	aux->next = tabela_simbolos;
 	aux->linha = linha;
 	tabela_simbolos = aux;
@@ -193,14 +221,12 @@ int tamanhoListaErros(error **lista){
 void insereTabelaSimbolos (char * sym_name){
 
 	simbolo* s = getsym(sym_name);
-    printf("Inserindo nome %s\n", sym_name);
-	if(!s){
+    if(!s){
         putsym (sym_name);
-        
-	}else{
+    }else{
 		char message[1024];
-		snprintf(message, 1024, "ERRO: A variavel %s ja foi definida!",sym_name);
-		puterror(message, &errors);
+        snprintf(message, 1024, "ERRO: A variavel %s ja foi definida!",sym_name);
+        puterror(message, &errors);
 	}
 }
 
@@ -217,14 +243,14 @@ void verificaTabelaSimbolos(char * sym_name){
 
 void verificaVariaveisNaoUtilizadas(){
 	simbolo *aux = tabela_simbolos;
-
-
 	while(aux!= NULL){	
-		if(aux->usado == 0){
+        if(aux->usado == 0){
+            
 			char message[1024];
 			snprintf(message, 1024, "WARNING: Variavel %s nao foi utilizada.", aux->name);
-			puterror(message, &warnings);
+            puterror(message, &warnings);
 		}
+        
 		aux = aux->next;
 	}
 }
@@ -244,7 +270,7 @@ void imprimeTabelaSimbolos(){
 
 void insereTiposSimbolos(char* tipo, int n){
 		simbolo * aux = tabela_simbolos;
-		while(aux!= NULL){		
+        while(aux!= NULL){		
             if(aux->linha == n){
 				strcpy(aux->tipo,tipo);
 			}

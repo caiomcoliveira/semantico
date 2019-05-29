@@ -1,0 +1,7 @@
+var {
+    int caio;
+    float renan
+}
+{
+    caio = 2
+}
