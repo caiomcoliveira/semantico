@@ -22,6 +22,7 @@ typedef struct symbol {
 	char type[30];
 	char name[200];
 	int used;
+	int address;
 	struct symbol *next;
 } symbol;
 
@@ -31,10 +32,10 @@ typedef struct error {
 } error;
 
 char* currentType;
-
 symbol *symbol_table = (symbol*)0;
 error *errors= (error*)0;
 error *warnings= (error*)0;
+int address = 0;
 
 void push_symbol(char* sym_name);
 symbol* find_symbol(char *sym_name);
@@ -150,17 +151,16 @@ int main (int argc, char *argv[])
         return 0;
     }
     if(!(yyparse ())) {
+		verify_variables_not_used();
+		print_color_yellow();
+		print_errors(&warnings);
+		print_color_end();
         if(list_length(&errors) > 0){
             print_color_red();
             print_errors(&errors);
             print_color_end();
-        }else{
-            verify_variables_not_used();
-            print_color_yellow();
-            print_errors(&warnings);
-            print_color_end();
-            // print_symbol_table();
-        }						
+			
+        }	print_symbol_table();					
     }
 }
 int yyerror (char *s) /* Called by yyparse on error */
@@ -176,8 +176,10 @@ void push_symbol(char *sym_name){
 	symbol *aux = (symbol*) malloc(sizeof(symbol));
     strcpy(aux->name, sym_name);
     strcpy(aux->type,currentType);
+	aux->address = address;
     aux->used = 0;
 	aux->next = symbol_table;
+	address++;
 	symbol_table = aux;
 }
 
@@ -224,8 +226,8 @@ void push_symbol_table (char * sym_name){
     if(!s){
         push_symbol (sym_name);
     }else{
-		char message[1024];
-        snprintf(message, 1024, "ERROR: Variable `%s` has already been defined!", sym_name);
+		char message[400];
+        snprintf(message, 400, "ERROR: Variable `%s` has already been defined!", sym_name);
         push_error(&errors, message);
 	}
 }
@@ -233,8 +235,8 @@ void push_symbol_table (char * sym_name){
 void verify_symbol_table(char * sym_name){
 	symbol* aux = find_symbol(sym_name);
 	if(aux == 0){		
-		char message[1024];
-		snprintf(message, 1024, "ERROR: Variable  `%s` has not been declared.", sym_name);
+		char message[400];
+		snprintf(message, 400, "ERROR: Variable  `%s` has not been declared.", sym_name);
 		push_error(&errors, message);
 	}else{
 		aux->used = 1;
@@ -245,8 +247,8 @@ void verify_variables_not_used(){
 	symbol *table = symbol_table;
 	while(table!= NULL){	
         if(table->used == 0){
-			char message[1024];
-			snprintf(message, 1024, "WARNING: Variable `%s` declared, but not used.", table->name);
+			char message[400];
+			snprintf(message, 400, "WARNING: Variable `%s` declared, but not used.", table->name);
             push_error(&warnings, message);
 		}
 		table = table->next;
@@ -256,9 +258,9 @@ void verify_variables_not_used(){
 
 void print_symbol_table(){
 	symbol *aux = symbol_table;
-	printf("Type\t Name\t\t\tUSED\n");
+	printf("Type\t Name\t\t\tUSED\t\tAddress\n");
 	while(aux!= NULL){		
-		printf("%s\t %s \t\t\t%s\n", aux->type, aux->name, (aux->used == 0) ? "NO" : "YES");
+		printf("%s\t%s\t\t\t%s\t\t%d\n", aux->type, aux->name, (aux->used == 0) ? "NO" : "YES", aux->address);
 		aux = aux->next;
 	}
 }
