@@ -5,6 +5,7 @@
 #define YYDEBUG 1
 #define TRUE 1
 #define FALSE 0
+#define TYPECONVERSIONDEBUG 0
 #define KNRM  "\x1B[0m"
 #define KRED  "\x1B[31m"
 #define KGRN  "\x1B[32m"
@@ -44,8 +45,6 @@ int address = 0;
 
 void push_symbol(char* sym_name);
 symbol* find_symbol(char *sym_name);
-
-
 
 void print_color_red(){
     printf("%s", KRED);
@@ -149,17 +148,23 @@ termo:
 ;
 
 opa:
-      '+' { ; }
-    | '-' { ; }
+      '+' { $$ = '+'; }
+    | '-' { $$ = '-'; }
 ;
 
 fator:
       NUM           { 
-		  			  if(!leftMostIsFloat) sprintf($$, "%d", atoi($1));
-					  if(leftMostIsFloat) sprintf($$, "%f", atof($1));
 	  				  check_type_conversion($1);
+		  			  if(!leftMostIsFloat && typeConversion) sprintf($$, "%d", atoi($1));
+					  if(leftMostIsFloat && typeConversion) sprintf($$, "%f", atof($1));
+					  if (TYPECONVERSIONDEBUG) printf("SYMBOL: %s\n", $$);
 					}
-	| opa NUM       { printf("CHAR: %c\n", $1); }
+	| opa NUM       { 
+					  check_type_conversion($2);
+					  if(!leftMostIsFloat && typeConversion) sprintf($$, "%c%d", $1, atoi($2));
+					  if(leftMostIsFloat && typeConversion) sprintf($$, "%c%f", $1, atof($2));
+					  if (TYPECONVERSIONDEBUG) printf("SYMBOL: %s\n", $$);
+					}
 	| ID 			{ verify_symbol_table($1); check_type_conversion($1); }
     | '(' exp ')'   {;}
 ;
@@ -279,7 +284,6 @@ void check_type_left_most(char * sym_name) {
 }
 
 void check_type_conversion(char * sym_name) {
-	printf("SYMBOL: %s\n", sym_name);
 	symbol* aux = find_symbol(sym_name);
 	if(aux != 0) {
 		if (!strcmp(aux->type, "float") && leftMostIsFloat) {
@@ -297,6 +301,26 @@ void check_type_conversion(char * sym_name) {
 			snprintf(message, 400, "WARNING: Implicit type conversion float -> int detected in line %d.", line);
 			push_error(&warnings, message);
 		} else {
+			char message[400];
+			snprintf(message, 400, "WARNING: Implicit type conversion int -> float detected in line %d.", line);
+			push_error(&warnings, message);
+		}
+	} else {
+		if (strchr(sym_name, '.') && leftMostIsFloat) {
+			typeConversion = FALSE;
+		} else if (strchr(sym_name, '.') && !leftMostIsFloat) {
+			typeConversion = TRUE;
+		} else if (!(strchr(sym_name, '.')) && leftMostIsFloat){
+			typeConversion = TRUE;
+		} else if (!(strchr(sym_name, '.')) && !leftMostIsFloat) {
+			typeConversion = FALSE;
+		}
+
+		if (typeConversion && leftMostIsFloat) {
+			char message[400];
+			snprintf(message, 400, "WARNING: Implicit type conversion float -> int detected in line %d.", line);
+			push_error(&warnings, message);
+		} else if (typeConversion && !leftMostIsFloat) {
 			char message[400];
 			snprintf(message, 400, "WARNING: Implicit type conversion int -> float detected in line %d.", line);
 			push_error(&warnings, message);
