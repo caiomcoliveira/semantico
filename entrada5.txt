@@ -1,0 +1,12 @@
+var {
+    int caio, renan;
+    float miguel
+}
+{
+    miguel = 2;
+    miguel = 2.0;
+    caio = 2.0;
+    caio = miguel;
+    miguel = 2.0;
+    caio = miguel
+}

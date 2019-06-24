@@ -3,7 +3,7 @@
   # include <string.h>
 %}
 %%
-([0-9]{1,})((\.)?[0-9]{1,})?		{return NUM;}
+([0-9]{1,})((\.)?[0-9]{1,})?		          {yylval.num = (char *) strdup(yytext); return NUM;}
 ("var")                                   {return VAR;}
 ("leia")                                  {return LEIA;}
 ("escreva")                               {return ESCREVA;}
