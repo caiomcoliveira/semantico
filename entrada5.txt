@@ -1,10 +1,11 @@
 var {
     int caio, renan;
-    float miguel
+    float miguel;
 }
 {
+    miguel = 5/2.0;
     miguel = 2.0;
     miguel = 2;
     caio = miguel;
-    renan = -2.0
+    renan = -2.0;
 }

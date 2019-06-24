@@ -1,7 +1,7 @@
 var {
     int caio;
-    float renan
+    float renan;
 }
 {
-    leia(caio,renan)
+    leia(caio,renan);
 }

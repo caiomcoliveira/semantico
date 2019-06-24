@@ -1,7 +1,7 @@
 var {
     int caio;
-    float renan
+    float renan;
 }
 {
-    miguel = 2
+    miguel = 2;
 }

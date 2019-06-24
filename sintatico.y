@@ -5,7 +5,7 @@
 #define YYDEBUG 1
 #define TRUE 1
 #define FALSE 0
-#define TYPECONVERSIONDEBUG 0
+#define TYPECONVERSIONDEBUG 1
 #define KNRM  "\x1B[0m"
 #define KRED  "\x1B[31m"
 #define KGRN  "\x1B[32m"
@@ -74,83 +74,95 @@ void check_type_conversion(char * sym_name);
 	char opa;
 }
 
-%token <num> NUM
-%token <id> ID
 %token LEIA
 %token ESCREVA
 %token OPA
 %token OPM
 %token STRING
-%token <id> TIPO
 %token VAR
+%token OPR
+%token ENQUANTO
+%token SE
+%token SENAO
 
-%type<id> fator
+%token <num> NUM
+%token <id> ID
+%token <id> TIPO
+
+%type<id> fator 
 %type<opa> opa
 
+
 %%
-
-programa:	    bloco_var
-            '{' { line++; } lista_cmds '}'	{ line++; }
+programa: bloco_var
+         '{' { line++; } lista_cmds '}'	{ line++; }
 ;
 
-bloco_var:      /*empty*/
-                | VAR { line++; } '{' lista_decl_var '}' { line++; }
+bloco_var: /*empty*/
+          | VAR { line++; } '{' lista_decl_var '}' { line++; }
 ;
 
-lista_decl_var:           decl_var { line++; }
-						| decl_var { line++; } ';' lista_decl_var {;}
+lista_decl_var: decl_var ';'	            {line++;}
+	      		| decl_var ';' {line++;} lista_decl_var {;}
 ;
 
 decl_var:  TIPO {currentType = $1;} lista_var {;}
 ;
 
-lista_cmds:	    cmd	{ typeConversion = FALSE; leftMostIsFloat = FALSE; line++; }
-            |   cmd { typeConversion = FALSE; leftMostIsFloat = FALSE; line++; } ';' lista_cmds
+lista_cmds: cmd	';' 		   { typeConversion = FALSE; leftMostIsFloat = FALSE; line++; }
+		  | cmd ';' { typeConversion = FALSE; leftMostIsFloat = FALSE; line++; } lista_cmds	   {;}
+          | cmd_bloco              {;}
+          | cmd_bloco  lista_cmds  {;}
 ;
 
-cmd:		ID { check_type_left_most($1); } '=' exp	  { verify_symbol_table($1); }
-        |   leia          {;}
-        |   escreva       {;}
+cmd: ID { check_type_left_most($1); }  '=' exp		{ verify_symbol_table($1); }
+   | leia               {;}
+   | escreva            {;}
 ;
 
-leia:   LEIA '(' lista_args ')' {;} /*Perguntar se "leia" é um token ou se eh definido na gramatica */
+cmd_bloco: enquanto {;}
+         | se_entao {;}
+;
+
+leia: LEIA '(' lista_var ')' {;} 
 ;
 
 escreva: ESCREVA '(' lista_output ')' {;}
 ;
 
-lista_args: 	  ID   									 { verify_symbol_table($1); }
-                | ID ',' lista_args                      { verify_symbol_table($1); }
+lista_var: ID                  { push_symbol_table($1); }
+         | ID ',' lista_var     { push_symbol_table($1); }
 ;
 
-lista_var: 	  ID 								 { push_symbol_table($1); }
-            | ID ',' lista_var                   { push_symbol_table($1); }
+lista_output: output                   { ; }
+            | output ',' lista_output   { ; }
 ;
 
-lista_output: 	output    							{;}
-              | output ',' lista_output             {;}
-;
-
-output:         exp        {;}
+output: exp                {;}
         /*| '"' STRING '"' {;} */
 ;
 
-exp:
-		termo 				{;}
-    |   exp opa termo       {;}
-		// | exp '-' termo  {;}
+exp_rel: exp OPR exp {;}
 ;
 
-termo:
-          fator           	{;}
-        | termo '*' fator 	{;}
-        | termo '/' fator 	{;}
+enquanto: ENQUANTO '(' exp_rel ')' '{'lista_cmds'}' {;}
 ;
 
-opa:
-      '+' { $$ = '+'; }
-    | '-' { $$ = '-'; }
+se_entao: SE '(' exp_rel ')' '{'lista_cmds'}'                         {;}
+        | SE '(' exp_rel ')' '{'lista_cmds'}' SENAO '{'lista_cmds'}'  {;}
 ;
+
+exp: termo          {;}
+   | exp opa termo  {;}
+;
+
+termo: fator           	{;}
+     | termo '*' fator 	{;}
+     | termo '/' fator 	{;}
+;
+
+opa: '+' { $$ = '+'; }
+   | '-' { $$ = '-'; }
 
 fator:
       NUM           { 
@@ -168,7 +180,6 @@ fator:
 	| ID 			{ verify_symbol_table($1); check_type_conversion($1); }
     | '(' exp ')'   {;}
 ;
-
 %%
 int main (int argc, char *argv[])
 {
