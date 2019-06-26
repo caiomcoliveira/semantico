@@ -3,7 +3,8 @@ var {
     float miguel;
 }
 {
-    miguel = 5/2.0;
+    miguel = 3*3/2;
+    miguel = 4/2;
     miguel = 2.0;
     miguel = 2;
     caio = miguel;

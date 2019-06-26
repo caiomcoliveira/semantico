@@ -5,7 +5,7 @@
 #define YYDEBUG 1
 #define TRUE 1
 #define FALSE 0
-#define TYPECONVERSIONDEBUG 1
+#define TYPECONVERSIONDEBUG 0
 #define KNRM  "\x1B[0m"
 #define KRED  "\x1B[31m"
 #define KGRN  "\x1B[32m"
@@ -36,6 +36,10 @@ typedef struct error {
 
 char* currentType;
 int typeConversion = FALSE;
+int typeConversionWarning = FALSE;
+int isExpression = FALSE;
+char currentExpression[2][50];
+char operator;
 int leftMostIsFloat = FALSE;
 int line = 1;
 symbol *symbol_table = (symbol*)0;
@@ -65,7 +69,10 @@ void push_symbol_table (char * sym_name);
 void verify_variables_not_used();
 void verify_symbol_table (char * sym_name);
 void check_type_left_most (char * sym_name);
-void check_type_conversion(char * sym_name);
+void check_type_conversion (char * sym_name);
+void evaluate_expression ();
+void reset ();
+void throw_type_conversion ();
 
 %}
 %union {
@@ -89,9 +96,8 @@ void check_type_conversion(char * sym_name);
 %token <id> ID
 %token <id> TIPO
 
-%type<id> fator 
-%type<opa> opa
-
+%type<id> fator termo
+%type<opa> opa special_opa
 
 %%
 programa: bloco_var
@@ -109,13 +115,13 @@ lista_decl_var: decl_var ';'	            {line++;}
 decl_var:  TIPO {currentType = $1;} lista_var {;}
 ;
 
-lista_cmds: cmd	';' 		   { typeConversion = FALSE; leftMostIsFloat = FALSE; line++; }
-		  | cmd ';' { typeConversion = FALSE; leftMostIsFloat = FALSE; line++; } lista_cmds	   {;}
+lista_cmds: cmd ';' { if(typeConversion) throw_type_conversion(); reset(); line++; }
+		  | cmd ';' { if(typeConversion) throw_type_conversion(); reset(); line++; } lista_cmds	   {;}
           | cmd_bloco              {;}
           | cmd_bloco  lista_cmds  {;}
 ;
 
-cmd: ID { check_type_left_most($1); }  '=' exp		{ verify_symbol_table($1); }
+cmd: ID { check_type_left_most($1); }  '=' exp	{ verify_symbol_table($1); }
    | leia               {;}
    | escreva            {;}
 ;
@@ -157,9 +163,11 @@ exp: termo          {;}
 ;
 
 termo: fator           	{;}
-     | termo '*' fator 	{;}
-     | termo '/' fator 	{;}
+     | termo { if(!isExpression) strcpy(currentExpression[0],$1); } special_opa { isExpression = TRUE; } fator { strcpy(currentExpression[1],$5); evaluate_expression(); }
 ;
+
+special_opa: '*' { $$ = '*'; operator = $$; }
+		   | '/' { $$ = '/'; operator = $$; }
 
 opa: '+' { $$ = '+'; }
    | '-' { $$ = '-'; }
@@ -167,14 +175,10 @@ opa: '+' { $$ = '+'; }
 fator:
       NUM           { 
 	  				  check_type_conversion($1);
-		  			  if(!leftMostIsFloat && typeConversion) sprintf($$, "%d", atoi($1));
-					  if(leftMostIsFloat && typeConversion) sprintf($$, "%f", atof($1));
 					  if (TYPECONVERSIONDEBUG) printf("SYMBOL: %s\n", $$);
 					}
 	| opa NUM       { 
 					  check_type_conversion($2);
-					  if(!leftMostIsFloat && typeConversion) sprintf($$, "%c%d", $1, atoi($2));
-					  if(leftMostIsFloat && typeConversion) sprintf($$, "%c%f", $1, atof($2));
 					  if (TYPECONVERSIONDEBUG) printf("SYMBOL: %s\n", $$);
 					}
 	| ID 			{ verify_symbol_table($1); check_type_conversion($1); }
@@ -213,6 +217,52 @@ int yyerror (char *s) /* Called by yyparse on error */
 	printf ("Problema com a analise sintatica!\n");
     print_color_end();
     return 0;
+}
+
+void reset () {
+	typeConversion = FALSE;
+	leftMostIsFloat = FALSE;
+	typeConversionWarning = FALSE;
+	isExpression = FALSE;
+	strcpy(currentExpression[0], "");
+	strcpy(currentExpression[1], "");
+}
+
+void evaluate_expression () {
+	if (strchr(currentExpression[0], '.') || strchr(currentExpression[1], '.')) {
+		typeConversion = leftMostIsFloat ? FALSE : TRUE;
+		sprintf(currentExpression[0], "%f", atof(currentExpression[0]) / atof(currentExpression[1]));
+		strcpy(currentExpression[1], "");
+	} else {
+		if (operator == '/') {
+			if (atoi(currentExpression[0]) % atoi(currentExpression[1])) {
+				typeConversion = leftMostIsFloat ? FALSE : TRUE;
+				sprintf(currentExpression[0], "%f", atof(currentExpression[0]) / atof(currentExpression[1]));
+				strcpy(currentExpression[1], "");
+			} else {
+				sprintf(currentExpression[0], "%d", atoi(currentExpression[0]) / atoi(currentExpression[1]));
+				strcpy(currentExpression[1], "");
+			}
+		} else {
+			sprintf(currentExpression[0], "%d", atoi(currentExpression[0]) * atoi(currentExpression[1]));
+			strcpy(currentExpression[1], "");
+			typeConversion = leftMostIsFloat ? TRUE : FALSE;
+		}
+	}
+}
+
+void throw_type_conversion() {
+	if (typeConversion && leftMostIsFloat && !typeConversionWarning) {
+		char message[400];
+		typeConversionWarning = TRUE;
+		snprintf(message, 400, "WARNING: Implicit type conversion float -> int detected in line %d.", line);
+		push_error(&warnings, message);
+	} else if (typeConversion && !leftMostIsFloat && !typeConversionWarning) {
+		char message[400];
+		typeConversionWarning = TRUE;
+		snprintf(message, 400, "WARNING: Implicit type conversion int -> float detected in line %d.", line);
+		push_error(&warnings, message);
+	}
 }
 
 
@@ -295,46 +345,28 @@ void check_type_left_most(char * sym_name) {
 }
 
 void check_type_conversion(char * sym_name) {
-	symbol* aux = find_symbol(sym_name);
-	if(aux != 0) {
-		if (!strcmp(aux->type, "float") && leftMostIsFloat) {
-			typeConversion = FALSE;
-		} else if (!strcmp(aux->type, "float") && !leftMostIsFloat) {
-			typeConversion = TRUE;
-		} else if (!strcmp(aux->type, "int") && leftMostIsFloat){
-			typeConversion = TRUE;
-		} else if (!strcmp(aux->type, "int") && !leftMostIsFloat) {
-			typeConversion = FALSE;
-		}
-
-		if (typeConversion && leftMostIsFloat) {
-			char message[400];
-			snprintf(message, 400, "WARNING: Implicit type conversion float -> int detected in line %d.", line);
-			push_error(&warnings, message);
+	if (!typeConversion && !isExpression) {
+		symbol* aux = find_symbol(sym_name);
+		if(aux != 0) {
+			if (!strcmp(aux->type, "float") && leftMostIsFloat) {
+				typeConversion = FALSE;
+			} else if (!strcmp(aux->type, "float") && !leftMostIsFloat) {
+				typeConversion = TRUE;
+			} else if (!strcmp(aux->type, "int") && leftMostIsFloat){
+				typeConversion = TRUE;
+			} else if (!strcmp(aux->type, "int") && !leftMostIsFloat) {
+				typeConversion = FALSE;
+			}
 		} else {
-			char message[400];
-			snprintf(message, 400, "WARNING: Implicit type conversion int -> float detected in line %d.", line);
-			push_error(&warnings, message);
-		}
-	} else {
-		if (strchr(sym_name, '.') && leftMostIsFloat) {
-			typeConversion = FALSE;
-		} else if (strchr(sym_name, '.') && !leftMostIsFloat) {
-			typeConversion = TRUE;
-		} else if (!(strchr(sym_name, '.')) && leftMostIsFloat){
-			typeConversion = TRUE;
-		} else if (!(strchr(sym_name, '.')) && !leftMostIsFloat) {
-			typeConversion = FALSE;
-		}
-
-		if (typeConversion && leftMostIsFloat) {
-			char message[400];
-			snprintf(message, 400, "WARNING: Implicit type conversion float -> int detected in line %d.", line);
-			push_error(&warnings, message);
-		} else if (typeConversion && !leftMostIsFloat) {
-			char message[400];
-			snprintf(message, 400, "WARNING: Implicit type conversion int -> float detected in line %d.", line);
-			push_error(&warnings, message);
+			if (strchr(sym_name, '.') && leftMostIsFloat) {
+				typeConversion = FALSE;
+			} else if (strchr(sym_name, '.') && !leftMostIsFloat) {
+				typeConversion = TRUE;
+			} else if (!(strchr(sym_name, '.')) && leftMostIsFloat){
+				typeConversion = TRUE;
+			} else if (!(strchr(sym_name, '.')) && !leftMostIsFloat) {
+				typeConversion = FALSE;
+			}
 		}
 	}
 }
