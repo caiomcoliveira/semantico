@@ -229,7 +229,13 @@ void reset () {
 }
 
 void evaluate_expression () {
-	if (strchr(currentExpression[0], '.') || strchr(currentExpression[1], '.')) {
+	symbol* auxSymbol1 = find_symbol(currentExpression[0]);
+	symbol* auxSymbol2 = find_symbol(currentExpression[1]);
+
+	int symbol1isFloat = auxSymbol1 && !strcmp(auxSymbol1->type,"float");
+	int symbol2isFloat = auxSymbol2 && !strcmp(auxSymbol2->type,"float");
+
+	if (strchr(currentExpression[0], '.') || strchr(currentExpression[1], '.') || symbol1isFloat || symbol2isFloat ) {
 		typeConversion = leftMostIsFloat ? FALSE : TRUE;
 		sprintf(currentExpression[0], "%f", atof(currentExpression[0]) / atof(currentExpression[1]));
 		strcpy(currentExpression[1], "");
@@ -348,6 +354,8 @@ void check_type_conversion(char * sym_name) {
 	if (!typeConversion && !isExpression) {
 		symbol* aux = find_symbol(sym_name);
 		if(aux != 0) {
+			if(strcmp(aux->type, "float") == 0)
+				leftMostIsFloat = TRUE;
 			if (!strcmp(aux->type, "float") && leftMostIsFloat) {
 				typeConversion = FALSE;
 			} else if (!strcmp(aux->type, "float") && !leftMostIsFloat) {
